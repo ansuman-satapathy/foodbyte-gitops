@@ -20,5 +20,5 @@ spec:
   prune: true
   sourceRef:
     kind: GitRepository
-    name: foodbyte-flux
+    name: flux
   timeout: 5m
