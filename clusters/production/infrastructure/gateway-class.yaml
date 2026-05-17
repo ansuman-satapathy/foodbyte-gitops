@@ -1,0 +1,10 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-gateway
+  annotations:
+    gateway.envoyproxy.io/extension-group: gateway.envoyproxy.io
+    gateway.envoyproxy.io/extension-kind: EnvoyProxy
+    gateway.envoyproxy.io/extension-name: kind-proxy-config
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller

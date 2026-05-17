@@ -1,0 +1,64 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: foodbyte-gateway
+  namespace: default
+spec:
+  gatewayClassName: envoy-gateway
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: foodbyte-master-route
+  namespace: default
+spec:
+  parentRefs:
+    - name: foodbyte-gateway
+  rules:
+    # 1. User & Auth
+    - matches:
+        - path: { type: PathPrefix, value: /api/users }
+        - path: { type: PathPrefix, value: /api/auth }
+      backendRefs:
+        - name: user-service-foodbyte-user-service
+          port: 8001
+          namespace: default
+
+    # 2. Restaurants
+    - matches:
+        - path: { type: PathPrefix, value: /api/restaurants }
+      backendRefs:
+        - name: restaurant-service-foodbyte-restaurant-service
+          port: 8002
+          namespace: default
+
+    # 3. Orders
+    - matches:
+        - path: { type: PathPrefix, value: /api/orders }
+      backendRefs:
+        - name: order-service-foodbyte-order-service
+          port: 8003
+          namespace: default
+
+    # 4. Notifications
+    - matches:
+        - path: { type: PathPrefix, value: /api/notifications }
+      backendRefs:
+        - name: notification-service-foodbyte-notification-service
+          port: 8004
+          namespace: default
+
+    # 5. Frontend
+    - matches:
+        - path: { type: PathPrefix, value: / }
+      backendRefs:
+        - name: frontend-foodbyte-frontend
+          port: 80
+          namespace: default
