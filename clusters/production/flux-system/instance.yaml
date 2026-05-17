@@ -11,7 +11,7 @@ spec:
   
   components:
     - source-controller
-    - kstatus-controller
+    - kustomize-controller
     - helm-controller
     - notification-controller
     - image-reflector-controller
@@ -26,7 +26,7 @@ spec:
   sync:
     kind: GitRepository
     url: "https://github.com/ansuman-satapathy/foodbyte-gitops"
-    ref: "refs/heads/main" 
+    ref: "refs/heads/main"
     path: "clusters/production"
     pullSecret: "flux-system"
     interval: "1m"
