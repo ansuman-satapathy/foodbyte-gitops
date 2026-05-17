@@ -27,5 +27,5 @@ spec:
     kind: GitRepository
     url: "https://github.com/ansuman-satapathy/foodbyte-gitops"
     ref: "refs/heads/main"
-    path: "clusters/production"
+    path: "clusters/production/bootstrap"
     interval: "1m"
