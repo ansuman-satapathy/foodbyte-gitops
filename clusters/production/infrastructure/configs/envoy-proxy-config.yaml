@@ -1,11 +1,11 @@
-apiVersion: gateway.envoyproxy.io/v1alpha1
+apiVersion: gateway.envoyproxy.io/v1
 kind: EnvoyProxy
 metadata:
-  name: kind-proxy-config
+  name: foodbyte-proxy-config
   namespace: envoy-gateway-system
 spec:
   provider:
     type: Kubernetes
     kubernetes:
       envoyService:
-        type: NodePort
+        type: LoadBalancer
