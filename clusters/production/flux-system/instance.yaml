@@ -28,5 +28,4 @@ spec:
     url: "https://github.com/ansuman-satapathy/foodbyte-gitops"
     ref: "refs/heads/main"
     path: "clusters/production"
-    pullSecret: "flux-system"
     interval: "1m"
