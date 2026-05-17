@@ -12,4 +12,19 @@ spec:
         kind: GitRepository
         name: foodbyte-charts
         namespace: flux-system
-  valuesFiles: ["values.yaml", "values-prod.yaml"]
+  values:
+    replicaCount: 2
+    useSecrets: true
+    externalDatabase:
+      enabled: false
+    imagePullSecrets:
+      - name: ghcr-pull-secret
+    image:
+      tag: "7ed02c635a6ebeb156a675a267d48ba3aff8a0b5"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
