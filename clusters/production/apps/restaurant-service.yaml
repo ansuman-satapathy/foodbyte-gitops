@@ -17,8 +17,6 @@ spec:
     useSecrets: true
     externalDatabase:
       enabled: false
-    imagePullSecrets:
-      - name: ghcr-pull-secret
     image:
       tag: "fa17f531503ff94940a4337ace75ea8492a027a1"
     resources:

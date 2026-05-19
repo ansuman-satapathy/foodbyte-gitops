@@ -14,8 +14,6 @@ spec:
         namespace: flux-system
   values:
     replicaCount: 2
-    imagePullSecrets:
-      - name: ghcr-pull-secret
     image:
       tag: "60a7ed6b23ccdbf539cc2c4a72d406352ffb1a76"
     resources:
