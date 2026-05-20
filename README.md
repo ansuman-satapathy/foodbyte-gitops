@@ -1,21 +1,49 @@
 # FoodByte GitOps
 
-This is the central orchestration repository for the FoodByte cluster. It utilizes the Flux Operator to manage the live state of the entire platform declaratively.
+This is the repo that runs the platform. Every change to the live cluster flows through here. Flux watches it and reconciles within 60 seconds of any commit, no manual deploys needed.
 
-## Architecture
-This repository provides a single control plane for cluster operations by synchronizing resources from multiple sources:
+## The full picture
 
-- Manager: The FluxInstance resource manages the lifecycle of the GitOps engine itself.
-- Core Infrastructure: Synchronizes manifests from the foodbyte-gitops/infrastructure folder (Envoy Gateway, EBS StorageClass).
-- Applications: Synchronizes HelmRelease manifests from the foodbyte-gitops/apps folder, linking back to the foodbyte-helm-charts repository for templates.
+FoodByte is split across 8 repositories. Five for the services, three for infrastructure:
 
-## Operational Standards
-- Centralized Ingress: All routing rules are managed in infrastructure/gateway.yaml to prevent path collisions.
-- Secret Management: Integrated with AWS Secrets Manager via the External Secrets Operator.
-- Data Persistence: Configured to use Amazon EBS for stateful workloads.
+| Repo | What it does |
+|---|---|
+| [foodbyte-infra](https://github.com/ansuman-satapathy/foodbyte-infra) | Terraform for VPC, EKS, and IAM |
+| [foodbyte-helm-charts](https://github.com/ansuman-satapathy/foodbyte-helm-charts) | Helm chart templates for all 5 services |
+| [foodbyte-gitops](https://github.com/ansuman-satapathy/foodbyte-gitops) | This repo. Pins versions, owns cluster state |
 
-## Bootstrap Sequence
-1. Install the Flux Operator CLI.
-2. Apply the FluxInstance manifest found in clusters/production/flux-system/instance.yaml.
-3. Configure the GitHub authentication secret.
-4. Flux will automatically reconcile the cluster state within 60 seconds of any commit.
+Each service repo has its own CI pipeline that builds, scans with Grype, and pushes a container image to GHCR on every merge. This repo then pins those immutable SHAs so every deployment is fully traceable.
+
+## Sync order
+
+Flux applies changes in three waves so operators are always ready before the things that depend on them:
+
+```
+Wave 1   Envoy Gateway, External Secrets Operator, EBS CSI Driver
+Wave 2   Gateway routes, SecretStore, StorageClass
+Wave 3   All 5 application services
+```
+
+Each wave waits for the previous one to be fully healthy before proceeding. This was a hard lesson learned after hitting Flux sync deadlocks early on.
+
+## Secrets
+
+Nothing sensitive lives in Git. Credentials are stored in AWS Secrets Manager and synced into the cluster at runtime by the External Secrets Operator. Authentication uses EKS Pod Identity so there are no long-lived IAM keys anywhere.
+
+## Bootstrapping a fresh cluster
+
+```bash
+# Provision the infrastructure
+cd foodbyte-infra/terraform/live/dev && terraform apply
+
+# Pull cluster credentials
+aws eks update-kubeconfig --region us-east-1 --name foodbyte-dev-cluster
+
+# Install Gateway API CRDs
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
+
+# Start Flux
+flux-operator install -f clusters/production/flux-system/instance.yaml
+```
+
+Flux handles the rest automatically.
