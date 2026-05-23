@@ -21,8 +21,8 @@ spec:
       tag: "fa17f531503ff94940a4337ace75ea8492a027a1"
     resources:
       limits:
-        cpu: 500m
+        cpu: 200m
         memory: 512Mi
       requests:
-        cpu: 250m
+        cpu: 50m
         memory: 256Mi

@@ -21,10 +21,10 @@ spec:
       tag: "3b65f1a5f6b9c0a6c9a6b3ce79ace4df945bf4da"
     resources:
       limits:
-        cpu: 500m
+        cpu: 200m
         memory: 512Mi
       requests:
-        cpu: 250m
+        cpu: 50m
         memory: 256Mi
     autoscaling:
       enabled: true
