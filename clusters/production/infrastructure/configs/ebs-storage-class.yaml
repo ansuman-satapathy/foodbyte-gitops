@@ -9,5 +9,4 @@ reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 parameters:
   type: gp3
-  allowAutoIOPSPerGBIncrements: "false"
-allowVolumeExpansion: true
+  encrypted: "true"
