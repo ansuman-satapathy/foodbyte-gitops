@@ -102,7 +102,7 @@ Full LGTM stack running inside the cluster:
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Clone the Entire Platform
 To set up the complete 8-repo ecosystem locally, use the master setup script:
