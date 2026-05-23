@@ -58,3 +58,10 @@ spec:
         enabled: true
         storageClassName: ebs-sc
         size: 5Gi
+      additionalDataSources:
+        - name: Loki
+          type: loki
+          access: proxy
+          url: http://loki-gateway.monitoring.svc.cluster.local
+          jsonData:
+            maxLines: 1000
