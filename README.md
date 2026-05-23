@@ -173,3 +173,18 @@ kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
 ```bash
 kubectl get gateway foodbyte-gateway -o jsonpath='{.status.addresses[0].value}'
 ```
+
+## Cleanup
+1. **Delete Kubernetes-managed Resources** (Deletes AWS Load Balancers & EBS Volumes):
+```bash
+kubectl delete gateway --all
+kubectl delete pvc --all
+```
+
+2. **Wait 60 seconds** for AWS to finalize the background deletions.
+
+3. **Destroy the Infrastructure**:
+```bash
+cd ~/Documents/Tech/Ops/foodbyte/foodbyte-infra/terraform/live/dev
+terraform destroy -auto-approve
+```
