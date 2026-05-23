@@ -41,6 +41,13 @@ spec:
             index:
               period: 24h
               prefix: loki_index_
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+    lokiCanary:
+      enabled: false
+    
     backend: { replicas: 0 }
     read: { replicas: 0 }
     write: { replicas: 0 }
@@ -66,11 +73,18 @@ spec:
         kind: HelmRepository
         name: grafana-charts
         namespace: flux-system
+  install:
+    createNamespace: false
   values:
     alloy:
       configReloader:
         enabled: true
       config: |
+        logging {
+          level  = "info"
+          format = "logfmt"
+        }
+
         discovery.kubernetes "pods" {
           role = "pod"
         }
