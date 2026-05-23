@@ -76,7 +76,6 @@ spec:
     alloy:
       configReloader:
         enabled: true
-      # 🏁 RESEARCH-BACKED FIX: Corrected the field name to configMap.content
       configMap:
         content: |
           logging {
@@ -84,12 +83,10 @@ spec:
             format = "logfmt"
           }
 
-          // 1. Discover all pods in the cluster
           discovery.kubernetes "pods" {
             role = "pod"
           }
 
-          // 2. Add metadata labels (Namespace, Pod, Container)
           discovery.relabel "logs" {
             targets = discovery.kubernetes.pods.targets
             rule {
@@ -106,19 +103,16 @@ spec:
             }
           }
 
-          // 3. Collect the logs
           loki.source.kubernetes "all_pods" {
             targets    = discovery.relabel.logs.output
             forward_to = [loki.write.local.receiver]
           }
 
-          // 4. Send to the Loki Gateway
           loki.write "local" {
             endpoint {
               url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
             }
           }
-    # 🚨 CRITICAL: Ensure ServiceAccount has permissions to read logs
     controller:
       rbac:
         create: true
