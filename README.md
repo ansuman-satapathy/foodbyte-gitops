@@ -22,48 +22,53 @@ Each service owns its code, Dockerfile, and GitHub Action pipeline:
 
 ```mermaid
 flowchart TD
-    subgraph Code_Layer ["Development & CI"]
-        Repos["5x Microservice Repos"]
-        Actions["GitHub Actions (CI)"]
+    %% Layer 1: CI Pipeline
+    subgraph Dev_CI ["1. Development & CI"]
+        direction LR
+        Repos["5x Microservice Repos"] --> Actions["GitHub Actions"]
+        Actions --> GHCR[("GHCR Registry")]
     end
 
-    subgraph Registry_Layer ["Image Management"]
-        GHCR[("GitHub Container Registry (GHCR)")]
-    end
-
-    subgraph GitOps_Layer ["Declarative State"]
-        GitOps["foodbyte-gitops"]
+    %% Layer 2: GitOps Logic
+    subgraph Logic ["2. GitOps State"]
+        direction LR
         Charts["foodbyte-helm-charts"]
-        Infra["foodbyte-infra"]
+        GitOps["foodbyte-gitops"]
     end
 
-    subgraph AWS_Cloud ["AWS Production Environment"]
-        subgraph Cluster ["EKS Cluster v1.35"]
-            Flux["Flux Operator"]
-            Monitoring["LGTM Stack"]
-            Gateway["Envoy Gateway"]
-            Apps["Microservices & Databases"]
+    %% Layer 3: Orchestration
+    Flux["Flux Operator"]
+
+    %% Layer 4: Cluster Workloads
+    subgraph Cluster ["3. AWS EKS Cluster"]
+        direction TB
+        Gateway["Envoy Gateway"]
+        Apps["Microservices & Databases"]
+        subgraph Monitoring ["Observability (LGTM)"]
+            Prom["Prometheus"]
+            Grafana["Grafana"]
+            Loki["Loki"]
         end
+    end
+
+    %% Layer 5: AWS Services
+    subgraph AWS_Svc ["4. AWS Managed Services"]
+        direction LR
         Secrets["AWS Secrets Manager"]
         Storage["Amazon EBS gp3"]
         LB["AWS Load Balancer"]
     end
 
-    %% CI Flow
-    Repos --> Actions
-    Actions -- "Push Image (SHA Tag)" --> GHCR
+    %% Delivery Flow
+    GHCR --> Flux
+    Logic --> Flux
+    Flux --> Cluster
 
-    %% CD Flow
-    GitOps -- "1. Monitor State" --> Flux
-    Charts -- "2. Pull Blueprints" --> Flux
-    GHCR -- "3. Pull Images" --> Flux
-    Flux -- "4. Reconcile" --> Cluster
-
-    %% Internal AWS Flow
-    Secrets -. "Sync Credentials" .-> Apps
-    Apps -. "Persist Data" .-> Storage
-    LB -. "Route Traffic" .-> Gateway
-    Gateway -. "Path-based Routing" .-> Apps
+    %% Internal Links
+    LB ==> Gateway
+    Secrets -. "Sync" .-> Apps
+    Apps -. "Persist" .-> Storage
+    Apps -. "Metrics/Logs" .-> Monitoring
 ```
 
 ## Project Screenshots
@@ -89,7 +94,7 @@ This repository utilizes the **Flux Operator (v0.50.0)** to manage the cluster v
 - **Wave 2: Configs**: AWS Secrets mapping, StorageClasses, and Gateway API routing rules.
 - **Wave 3: Apps**: 5 Microservices (FastAPI/React) and 4 self-hosted databases.
 
-## Observability Stack (PGL)
+## Observability Stack (LGTM)
 The cluster is equipped with a professional 2026-standard monitoring pipeline:
 - **Loki (v6.55.0)**: Centralized log aggregation with EBS persistence.
 - **Grafana (v85.2.2)**: Advanced visualization for metrics and logs.
