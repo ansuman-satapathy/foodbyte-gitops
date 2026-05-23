@@ -1,24 +1,43 @@
 # FoodByte GitOps
 
-This is the central orchestration repository for the FoodByte cluster. It acts as the **Single Source of Truth** and the entry point for the entire platform ecosystem, managing everything from core infrastructure to advanced observability.
+This is the central orchestration repository for the FoodByte cluster. It acts as the Single Source of Truth and the entry point for the entire platform ecosystem, managing everything from Kubernetes platform infrastructure to advanced observability.
 
-## 🌐 Repository Ecosystem
+## Repository Ecosystem
 To understand the full architecture, refer to the sibling repositories:
-- [**foodbyte-infra**](https://github.com/ansuman-satapathy/foodbyte-infra): The "Hardware" Layer. Terraform modules for VPC, EKS, and IAM.
-- [**foodbyte-helm-charts**](https://github.com/ansuman-satapathy/foodbyte-helm-charts): The "Blueprint" Layer. Logic library of Helm charts for every microservice.
-- [**foodbyte-gitops**](https://github.com/ansuman-satapathy/foodbyte-gitops): (Current Repo) The "Release" Layer. Pins SHAs and manages live environment state.
 
-## 🏗️ Architecture & GitOps Flow
+### Core Infrastructure & Release
+- [**foodbyte-infra**](https://github.com/ansuman-satapathy/foodbyte-infra): Terraform modules for VPC, EKS, and IAM.
+- [**foodbyte-helm-charts**](https://github.com/ansuman-satapathy/foodbyte-helm-charts): Logic library of Helm charts consumed by all services.
+- [**foodbyte-gitops**](https://github.com/ansuman-satapathy/foodbyte-gitops): (This Repo) Pins SHAs and maintains the centralized state for ingress, secrets, and observability.
+
+### Independent Microservices (CI/CD Sources)
+Each service owns its code, Dockerfile, and GitHub Action pipeline:
+- [**user-service**](https://github.com/ansuman-satapathy/foodbyte-user-service) (FastAPI)
+- [**order-service**](https://github.com/ansuman-satapathy/foodbyte-order-service) (FastAPI)
+- [**restaurant-service**](https://github.com/ansuman-satapathy/foodbyte-restaurant-service) (FastAPI)
+- [**notification-service**](https://github.com/ansuman-satapathy/foodbyte-notification-service) (FastAPI)
+- [**frontend**](https://github.com/ansuman-satapathy/foodbyte-frontend) (React/Vite)
+
+## Architecture & GitOps Flow
 
 ```mermaid
 flowchart TD
-    subgraph Repos ["GitHub Repositories"]
-        Infra["foodbyte-infra"]
-        Charts["foodbyte-helm-charts"]
-        GitOps["foodbyte-gitops"]
+    subgraph Code_Layer ["Development & CI"]
+        Repos["5x Microservice Repos"]
+        Actions["GitHub Actions (CI)"]
     end
 
-    subgraph AWS ["AWS Cloud"]
+    subgraph Registry_Layer ["Image Management"]
+        GHCR[("GitHub Container Registry (GHCR)")]
+    end
+
+    subgraph GitOps_Layer ["Declarative State"]
+        GitOps["foodbyte-gitops"]
+        Charts["foodbyte-helm-charts"]
+        Infra["foodbyte-infra"]
+    end
+
+    subgraph AWS_Cloud ["AWS Production Environment"]
         subgraph Cluster ["EKS Cluster v1.35"]
             Flux["Flux Operator"]
             Monitoring["LGTM Stack"]
@@ -30,53 +49,54 @@ flowchart TD
         LB["AWS Load Balancer"]
     end
 
-    GitOps --> Flux
-    Charts --> Flux
-    Flux --> Gateway
-    Flux --> Apps
-    Flux --> Monitoring
-    
-    Secrets -.-> Apps
-    Apps -.-> Storage
-    LB -.-> Gateway
-    Gateway -.-> Apps
+    %% CI Flow
+    Repos --> Actions
+    Actions -- "Push Image (SHA Tag)" --> GHCR
+
+    %% CD Flow
+    GitOps -- "1. Monitor State" --> Flux
+    Charts -- "2. Pull Blueprints" --> Flux
+    GHCR -- "3. Pull Images" --> Flux
+    Flux -- "4. Reconcile" --> Cluster
+
+    %% Internal AWS Flow
+    Secrets -. "Sync Credentials" .-> Apps
+    Apps -. "Persist Data" .-> Storage
+    LB -. "Route Traffic" .-> Gateway
+    Gateway -. "Path-based Routing" .-> Apps
 ```
 
-## 📸 Project Screenshots
+## Project Screenshots
 
-### 1. The GitOps Command Center
-![Flux Dashboard](docs/images/flux-dashboard.png)
+### 1. The GitOps Dashboard
+![Flux Dashboard](screenshots/flux-dashboard.png)
 *Real-time reconciliation of the 3-wave synchronization pipeline.*
 
-### 2. Cluster Observability
-![Grafana Dashboard](docs/images/grafana-cluster.png)
+### 2. The Observability Dashboard
+![Grafana Dashboard](screenshots/grafana-cluster.png)
 *Live metrics and resource utilization across the 3-node EKS cluster.*
 
-### 3. Log Aggregation
-![Loki Explore](docs/images/loki-logs.png)
-*Structured log streaming from microservices via Grafana Alloy and Loki.*
-
-### 4. Enterprise Hardware
-![AWS Console](docs/images/aws-nodes.png)
+### 3. AWS EKS Nodes
+![AWS Console](screenshots/aws-nodes.png)
 *EKS Node Groups and EBS Persistent Volumes provisioned via Terraform.*
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 This repository utilizes the **Flux Operator (v0.50.0)** to manage the cluster via a 3-Wave synchronization pipeline:
 
 - **Wave 1: Operators**: External Secrets Operator (ESO), Envoy Gateway (v1.8.0), and the LGTM Monitoring Stack.
 - **Wave 2: Configs**: AWS Secrets mapping, StorageClasses, and Gateway API routing rules.
 - **Wave 3: Apps**: 5 Microservices (FastAPI/React) and 4 self-hosted databases.
 
-## 📊 Observability Stack (PGL)
+## Observability Stack (PGL)
 The cluster is equipped with a professional 2026-standard monitoring pipeline:
 - **Loki (v6.55.0)**: Centralized log aggregation with EBS persistence.
 - **Grafana (v85.2.2)**: Advanced visualization for metrics and logs.
 - **Prometheus**: Cluster-wide metrics scraping and alerting.
 ---
 
-## 🚀 How to run (Step-by-Step)
+## How to run (Step-by-Step)
 
 Follow these steps exactly to rebuild the environment from scratch.
 
@@ -121,7 +141,7 @@ flux-operator install -f clusters/production/flux-system/instance.yaml
 
 ---
 
-## 🔍 Verification & Dashboards
+## Verification & Dashboards
 
 ### Monitor the Rollout
 ```bash
