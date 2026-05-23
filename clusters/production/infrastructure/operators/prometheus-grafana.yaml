@@ -17,17 +17,16 @@ spec:
   chart:
     spec:
       chart: kube-prometheus-stack
-      version: "85.2.2" # Verified May 2026 Stable
+      version: "85.2.2"
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
         namespace: flux-system
   install:
-    createNamespace: false # Created via namespaces.yaml
+    createNamespace: false 
     remediation:
       retries: 3
   values:
-    # Optimized for 3-node cluster to prevent CPU spikes
     prometheus:
       prometheusSpec:
         resources:

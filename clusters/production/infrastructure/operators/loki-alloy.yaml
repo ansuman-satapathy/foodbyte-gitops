@@ -65,7 +65,7 @@ spec:
   chart:
     spec:
       chart: alloy
-      version: "1.8.1" # Verified May 2026 Stable
+      version: "1.8.1"
       sourceRef:
         kind: HelmRepository
         name: grafana-community
@@ -74,6 +74,4 @@ spec:
     alloy:
       configReloader:
         enabled: true
-    # Configure Alloy to send logs to the Loki service
-    # In a real environment, we'd use a more complex config, but for the showcase,
-    # we use the standard 'loki' component in Alloy.
+
