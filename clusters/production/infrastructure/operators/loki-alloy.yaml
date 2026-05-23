@@ -41,12 +41,9 @@ spec:
             index:
               period: 24h
               prefix: loki_index_
-    backend:
-      replicas: 0
-    read:
-      replicas: 0
-    write:
-      replicas: 0
+    backend: { replicas: 0 }
+    read: { replicas: 0 }
+    write: { replicas: 0 }
     singleBinary:
       replicas: 1
       persistence:
@@ -69,9 +66,38 @@ spec:
         kind: HelmRepository
         name: grafana-charts
         namespace: flux-system
-  install:
-    createNamespace: false
   values:
     alloy:
       configReloader:
         enabled: true
+      config: |
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.relabel "logs" {
+          targets = discovery.kubernetes.pods.targets
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+        }
+
+        loki.source.kubernetes "all_pods" {
+          targets    = discovery.relabel.logs.output
+          forward_to = [loki.write.local.receiver]
+        }
+
+        loki.write "local" {
+          endpoint {
+            url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+          }
+        }
