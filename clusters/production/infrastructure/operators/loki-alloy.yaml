@@ -24,13 +24,9 @@ spec:
         namespace: flux-system
   install:
     createNamespace: false
-    remediation:
-      retries: 3
   values:
     deploymentMode: SingleBinary
-    test:
-      enabled: false
-    
+    test: { enabled: false }
     loki:
       auth_enabled: false
       commonConfig:
@@ -46,24 +42,18 @@ spec:
             index:
               period: 24h
               prefix: loki_index_
-    
-    chunksCache: { enabled: false }
-    resultsCache: { enabled: false }
-    lokiCanary: { enabled: false }
-    
     backend: { replicas: 0 }
     read: { replicas: 0 }
     write: { replicas: 0 }
-    
     singleBinary:
       replicas: 1
       persistence:
         enabled: true
         size: 10Gi
         storageClass: ebs-sc
-      resources:
-        limits: { cpu: 300m, memory: 1Gi }
-        requests: { cpu: 100m, memory: 512Mi }
+    lokiCanary: { enabled: false }
+    chunksCache: { enabled: false }
+    resultsCache: { enabled: false }
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -86,39 +76,49 @@ spec:
     alloy:
       configReloader:
         enabled: true
-      config: |
-        logging {
-          level  = "info"
-          format = "logfmt"
-        }
-
-        discovery.kubernetes "pods" {
-          role = "pod"
-        }
-
-        discovery.relabel "logs" {
-          targets = discovery.kubernetes.pods.targets
-          rule {
-            source_labels = ["__meta_kubernetes_namespace"]
-            target_label  = "namespace"
+      # 🏁 RESEARCH-BACKED FIX: Corrected the field name to configMap.content
+      configMap:
+        content: |
+          logging {
+            level  = "info"
+            format = "logfmt"
           }
-          rule {
-            source_labels = ["__meta_kubernetes_pod_name"]
-            target_label  = "pod"
-          }
-          rule {
-            source_labels = ["__meta_kubernetes_pod_container_name"]
-            target_label  = "container"
-          }
-        }
 
-        loki.source.kubernetes "all_pods" {
-          targets    = discovery.relabel.logs.output
-          forward_to = [loki.write.local.receiver]
-        }
-
-        loki.write "local" {
-          endpoint {
-            url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+          // 1. Discover all pods in the cluster
+          discovery.kubernetes "pods" {
+            role = "pod"
           }
-        }
+
+          // 2. Add metadata labels (Namespace, Pod, Container)
+          discovery.relabel "logs" {
+            targets = discovery.kubernetes.pods.targets
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              target_label  = "namespace"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "pod"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_name"]
+              target_label  = "container"
+            }
+          }
+
+          // 3. Collect the logs
+          loki.source.kubernetes "all_pods" {
+            targets    = discovery.relabel.logs.output
+            forward_to = [loki.write.local.receiver]
+          }
+
+          // 4. Send to the Loki Gateway
+          loki.write "local" {
+            endpoint {
+              url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+            }
+          }
+    # 🚨 CRITICAL: Ensure ServiceAccount has permissions to read logs
+    controller:
+      rbac:
+        create: true
