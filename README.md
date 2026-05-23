@@ -1,36 +1,34 @@
 # FoodByte GitOps
 
-This is the central orchestration repository for the FoodByte cluster. It acts as the Single Source of Truth and the entry point for the entire platform ecosystem, managing everything from Kubernetes platform infrastructure to advanced observability.
+This is the repo that runs FoodByte in production. Flux watches it and reconciles the cluster within 60 seconds of any commit. Everything from ingress routing to secrets mapping to observability is declared here.
 
-## Repository Ecosystem
-To understand the full architecture, refer to the sibling repositories:
+## Repositories
 
-### Core Infrastructure & Release
-- [**foodbyte-infra**](https://github.com/ansuman-satapathy/foodbyte-infra): Terraform modules for VPC, EKS, and IAM.
-- [**foodbyte-helm-charts**](https://github.com/ansuman-satapathy/foodbyte-helm-charts): Logic library of Helm charts consumed by all services.
-- [**foodbyte-gitops**](https://github.com/ansuman-satapathy/foodbyte-gitops): (This Repo) Pins SHAs and maintains the centralized state for ingress, secrets, and observability.
+The platform lives across 8 repos:
 
-### Independent Microservices (CI/CD Sources)
-Each service owns its code, Dockerfile, and GitHub Action pipeline:
-- [**user-service**](https://github.com/ansuman-satapathy/foodbyte-user-service) (FastAPI)
-- [**order-service**](https://github.com/ansuman-satapathy/foodbyte-order-service) (FastAPI)
-- [**restaurant-service**](https://github.com/ansuman-satapathy/foodbyte-restaurant-service) (FastAPI)
-- [**notification-service**](https://github.com/ansuman-satapathy/foodbyte-notification-service) (FastAPI)
-- [**frontend**](https://github.com/ansuman-satapathy/foodbyte-frontend) (React/Vite)
+**Infrastructure**
+| Repo | What it does |
+|---|---|
+| [foodbyte-infra](https://github.com/ansuman-satapathy/foodbyte-infra) | Terraform for VPC, EKS, and IAM |
+| [foodbyte-helm-charts](https://github.com/ansuman-satapathy/foodbyte-helm-charts) | Helm chart templates for all 5 services |
+| [foodbyte-gitops](https://github.com/ansuman-satapathy/foodbyte-gitops) | This repo. Pins versions and owns cluster state |
 
-## Architecture & GitOps Flow
+**Services** (each has its own CI pipeline, Dockerfile, and GHCR image)
+- [user-service](https://github.com/ansuman-satapathy/foodbyte-user-service) / [order-service](https://github.com/ansuman-satapathy/foodbyte-order-service) / [restaurant-service](https://github.com/ansuman-satapathy/foodbyte-restaurant-service) / [notification-service](https://github.com/ansuman-satapathy/foodbyte-notification-service) / [frontend](https://github.com/ansuman-satapathy/foodbyte-frontend)
+
+## How it all fits together
 
 ```mermaid
 flowchart TD
     %% Layer 1: CI Pipeline
-    subgraph Dev_CI ["1. Development & CI"]
+    subgraph Dev_CI ["Development & CI"]
         direction LR
         Repos["5x Microservice Repos"] --> Actions["GitHub Actions"]
         Actions --> GHCR[("GHCR Registry")]
     end
 
     %% Layer 2: GitOps Logic
-    subgraph Logic ["2. GitOps State"]
+    subgraph Logic ["GitOps State"]
         direction LR
         Charts["foodbyte-helm-charts"]
         GitOps["foodbyte-gitops"]
@@ -40,11 +38,11 @@ flowchart TD
     Flux["Flux Operator"]
 
     %% Layer 4: Cluster Workloads
-    subgraph Cluster ["3. AWS EKS Cluster"]
+    subgraph Cluster ["AWS EKS Cluster"]
         direction TB
         Gateway["Envoy Gateway"]
         Apps["Microservices & Databases"]
-        subgraph Monitoring ["Observability (LGTM)"]
+        subgraph Monitoring ["Observability"]
             Prom["Prometheus"]
             Grafana["Grafana"]
             Loki["Loki"]
@@ -52,16 +50,17 @@ flowchart TD
     end
 
     %% Layer 5: AWS Services
-    subgraph AWS_Svc ["4. AWS Managed Services"]
+    subgraph AWS_Svc ["AWS"]
         direction LR
-        Secrets["AWS Secrets Manager"]
-        Storage["Amazon EBS gp3"]
-        LB["AWS Load Balancer"]
+        Secrets["Secrets Manager"]
+        Storage["EBS gp3"]
+        LB["Load Balancer"]
     end
 
     %% Delivery Flow
     GHCR --> Flux
-    Logic --> Flux
+    Charts --> Flux
+    GitOps --> Flux
     Flux --> Cluster
 
     %% Internal Links
@@ -71,59 +70,68 @@ flowchart TD
     Apps -. "Metrics/Logs" .-> Monitoring
 ```
 
-## Project Screenshots
+## Sync order
 
-### 1. The GitOps Dashboard
-![Flux Dashboard](screenshots/flux-dashboard.png)
-*Real-time reconciliation of the 3-wave synchronization pipeline.*
+Flux applies everything in three waves so dependencies are always ready before the things that need them:
 
-### 2. The Observability Dashboard
-![Grafana Dashboard](screenshots/grafana-cluster.png)
-*Live metrics and resource utilization across the 3-node EKS cluster.*
-
-### 3. AWS EKS Nodes
-![AWS Console](screenshots/aws-nodes.png)
-*EKS Node Groups and EBS Persistent Volumes provisioned via Terraform.*
-
----
-
-## Architecture
-This repository utilizes the **Flux Operator (v0.50.0)** to manage the cluster via a 3-Wave synchronization pipeline:
-
-- **Wave 1: Operators**: External Secrets Operator (ESO), Envoy Gateway (v1.8.0), and the LGTM Monitoring Stack.
-- **Wave 2: Configs**: AWS Secrets mapping, StorageClasses, and Gateway API routing rules.
-- **Wave 3: Apps**: 5 Microservices (FastAPI/React) and 4 self-hosted databases.
-
-## Observability Stack (LGTM)
-The cluster is equipped with a professional 2026-standard monitoring pipeline:
-- **Loki (v6.55.0)**: Centralized log aggregation with EBS persistence.
-- **Grafana (v85.2.2)**: Advanced visualization for metrics and logs.
-- **Prometheus**: Cluster-wide metrics scraping and alerting.
----
-
-## How to run (Step-by-Step)
-
-Follow these steps exactly to rebuild the environment from scratch.
-
-### 1. Provision the Hardware
-```bash
-cd ~/Documents/Tech/Ops/foodbyte/foodbyte-infra/terraform/live/dev
-terraform apply -auto-approve
+```
+Wave 1   External Secrets Operator, Envoy Gateway, LGTM monitoring stack
+Wave 2   AWS secrets mapping, StorageClasses, Gateway routing rules
+Wave 3   5 microservices + 4 self-hosted databases
 ```
 
-### 2. Establish Cluster Context
+Each wave waits for the previous one to be fully healthy. This was a necessary fix after running into Flux sync deadlocks where ExternalSecrets were being applied before the operator existed.
+
+## Observability
+
+Full LGTM stack running inside the cluster:
+- **Prometheus** for cluster-wide metrics scraping and alerting
+- **Loki** for centralized log aggregation with EBS persistence
+- **Grafana** for dashboards across both metrics and logs
+
+## Screenshots
+
+### Flux dashboard
+![Flux Dashboard](screenshots/flux-dashboard.png)
+
+### Grafana
+![Grafana Dashboard](screenshots/grafana-cluster.png)
+
+### EKS nodes
+![AWS Console](screenshots/aws-nodes.png)
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the Entire Platform
+To set up the complete 8-repo ecosystem locally, use the master setup script:
+
+```bash
+curl -sL https://raw.githubusercontent.com/ansuman-satapathy/foodbyte-gitops/main/setup.sh | bash
+```
+*This script creates a `foodbyte-platform/` directory and handles cloning/pulling for all repositories.*
+
+### 2. Bootstrapping from scratch
+
+### 1. Provision infrastructure
+```bash
+cd foodbyte-infra/terraform/live/dev
+terraform init
+terraform apply
+```
+
+### 2. Get cluster credentials
 ```bash
 aws eks update-kubeconfig --region us-east-1 --name foodbyte-dev-cluster
 ```
 
-### 3. Install API Gateway CRDs
-EKS 1.35 requires the Gateway API definitions to be installed manually:
+### 3. Install Gateway API CRDs
 ```bash
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
 ```
 
-### 4. Configure Production Security
-Create the 5 mandatory secrets in AWS Secrets Manager:
+### 4. Create secrets in AWS Secrets Manager
 ```bash
 aws secretsmanager create-secret --name foodbyte/prod/jwt-secret --secret-string "YOUR_SECRET"
 aws secretsmanager create-secret --name foodbyte/prod/postgres-password --secret-string "YOUR_PASS"
@@ -132,59 +140,63 @@ aws secretsmanager create-secret --name foodbyte/prod/rabbitmq-password --secret
 aws secretsmanager create-secret --name foodbyte/prod/redis-password --secret-string "YOUR_PASS"
 ```
 
-### 5. Install the Flux Operator CLI
+### 5. Install Flux Operator
 ```bash
 curl -sL https://github.com/controlplaneio/flux-operator/releases/download/v0.50.0/flux-operator_0.50.0_linux_amd64.tar.gz | tar xz
 sudo mv flux-operator /usr/local/bin/
 ```
 
-### 6. Run flux install
+### 6. Bootstrap
 ```bash
-cd ~/Documents/Tech/Ops/foodbyte/foodbyte-gitops
+cd foodbyte-gitops
 flux-operator install -f clusters/production/flux-system/instance.yaml
 ```
 
+Flux reconciles everything automatically from here.
+
 ---
 
-## Verification & Dashboards
+## Verification
 
-### Monitor the Rollout
 ```bash
-# Watch the pods turn Green
+# Watch waves reconcile
 kubectl get kustomization -n flux-system -w
 
-# Verify all pods are running
+# Check all pods are healthy
 kubectl get pods -A | grep -v kube-system
 ```
 
-### Access Flux Dashboard
+### Access dashboards locally
+
 ```bash
+# Flux
 kubectl port-forward -n flux-system svc/flux-operator 9080:9080
-# Open http://localhost:9080
-```
+# http://localhost:9080
 
-### Access Grafana (Metrics & Logs)
-```bash
+# Grafana
 kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
-# Open http://localhost:3000 (User: admin, Pass: ChooseYourPass123!)
+# http://localhost:3000  (admin / your-password)
 ```
 
-### Find Public Entry Point
+### Find the public endpoint
 ```bash
 kubectl get gateway foodbyte-gateway -o jsonpath='{.status.addresses[0].value}'
 ```
 
-## Cleanup
-1. **Delete Kubernetes-managed Resources** (Deletes AWS Load Balancers & EBS Volumes):
+---
+
+## Teardown
+
+Run these in order to avoid orphaned AWS resources:
+
 ```bash
+# Remove Kubernetes-managed AWS resources first (LBs, EBS volumes)
 kubectl delete gateway --all
 kubectl delete pvc --all
-```
 
-2. **Wait 60 seconds** for AWS to finalize the background deletions.
+# Wait ~60 seconds for AWS to clean up
 
-3. **Destroy the Infrastructure**:
-```bash
-cd ~/Documents/Tech/Ops/foodbyte/foodbyte-infra/terraform/live/dev
-terraform destroy -auto-approve
+# Destroy infrastructure
+cd foodbyte-infra/terraform/live/dev
+terraform destroy
 ```
